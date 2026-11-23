@@ -132,3 +132,30 @@ def test_fill_explanations(db):
     n = seedbank.fill_explanations(db)
     assert n > 800
     assert db.value("SELECT explain_text FROM qb_question ORDER BY id LIMIT 1") == "自己寫的"
+
+
+def test_upgrade_v1_database(server):
+    """v1 的舊資料庫（沒有解說欄位、已載入沒有解說的題庫）開啟時：先加欄位再補解說，不會失敗。"""
+    from cq.database import DB
+    d = DB(server)
+    c = d.connect(use_db=False)
+    with c.cursor() as cur:
+        cur.execute("DROP DATABASE IF EXISTS cq_test")
+    c.close()
+    d.prepare()
+    for col in ("explain_text", "explain_by", "explain_at"):
+        d.exec("ALTER TABLE qb_question DROP COLUMN %s" % col)
+    d.exec("ALTER TABLE sys_company DROP COLUMN ai_key")
+    d.exec("ALTER TABLE sys_company DROP COLUMN ai_model")
+    d.exec("INSERT INTO qb_question (unit, stem, opt1, opt2, opt3, opt4, answer, norm_key) VALUES "
+           "('01','測試','a','b','c','d',1,'x')")
+    d.exec("REPLACE INTO sys_meta (k, v) VALUES ('schema_version', '1')")
+    os.environ.pop("CQ_NO_SEED", None)
+    try:
+        d.prepare()
+    finally:
+        os.environ["CQ_NO_SEED"] = "1"
+    assert d.value("SELECT v FROM sys_meta WHERE k='schema_version'") == "2"
+    assert d.value("SELECT COUNT(*) FROM information_schema.columns WHERE table_name='qb_question' "
+                   "AND column_name='explain_text'") >= 1
+    d.close()

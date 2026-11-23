@@ -104,13 +104,13 @@ class DB:
         for stmt in ddl():
             self.exec(stmt)
         ver = int(self.value("SELECT v FROM sys_meta WHERE k='schema_version'") or 0)
-        from .seed import seed_all
-        seed_all(self, first=(ver == 0))
-        for v in sorted(UPGRADES):
+        for v in sorted(UPGRADES):                     # 先升級欄位，再寫預設資料（預設資料會用到新欄位）
             if v > ver:
                 for stmt in UPGRADES[v]:
                     self.exec(stmt)
         self.exec("REPLACE INTO sys_meta (k, v) VALUES ('schema_version', %s)", (str(max(SCHEMA_VERSION, ver)),))
+        from .seed import seed_all
+        seed_all(self, first=(ver == 0))
 
 
 def split_sql(text):
