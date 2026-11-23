@@ -13,6 +13,7 @@ https://github.com/user-attachments/assets/2706bc8c-9d47-4d24-a061-f9723f6ac28d
 
 - **Windows 11**：到 [Releases](https://github.com/achir1015/zms-care-quiz/releases/latest) 下載 `ZMSCareQuiz-Setup-1.0.0.exe`，安裝後桌面會有捷徑，打開就能用（資料庫內建，自動啟動與停止）。
 - **macOS**：下載 `ZMSCareQuiz-1.0.0-mac.dmg`，把 App 拖到「應用程式」（已通過 Apple 公證）。
+- **線上版**：https://achir1015.github.io/zms-care-quiz/app/ （手機、平板、電腦都能用，可加到主畫面離線練習；紀錄存在這台裝置）
 - 第一次開啟會自動載入**內建基本題庫 897 題（889 題可出題），每題附 AI 解說**；第一次使用請建立系統管理員帳號。
 
 ## 功能
@@ -38,7 +39,7 @@ https://github.com/user-attachments/assets/2706bc8c-9d47-4d24-a061-f9723f6ac28d
 |---|---|
 | Windows 11 | ✅ v1.0.0 |
 | MacBook Pro | ✅ v1.0.0（Apple 公證） |
-| 線上版（HTML） | 規劃中 |
+| 線上版（HTML） | ✅ [GitHub Pages](https://achir1015.github.io/zms-care-quiz/)（純網頁，內建題庫與解說） |
 | iPhone／iPad（線上安裝） | 規劃中 |
 | Android | 規劃中 |
 
@@ -52,6 +53,7 @@ py -3.14 -m venv .venv
 .venv\Scripts\python run_web.py                      # 網頁預覽 http://127.0.0.1:8650
 .venv\Scripts\python -m pytest -q tests
 .venv\Scripts\python tools\build_windows.py          # 安裝檔 dist-installer\ZMSCareQuiz-Setup-版本.exe
+.venv\Scripts\python tools\make_pages.py             # 線上版：docs/app/bank.js、圖示、教學語音（改了 docs/ 要遞增 docs/sw.js 的 CACHE）
 ```
 
 資料庫埠：開發與安裝版 3458、測試 3468。題庫 PDF 不放進儲存庫（放在上一層 `PDF\`）。

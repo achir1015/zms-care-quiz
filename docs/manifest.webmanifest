@@ -1,0 +1,16 @@
+{
+  "name": "資料助秘照顧服務員學科測驗",
+  "short_name": "學科測驗",
+  "description": "照顧服務員單一級學科測驗練習：內建 897 題、每次 100 題選項換位、每題 AI 解說、成長圖表。",
+  "lang": "zh-Hant-TW",
+  "start_url": "./app/",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#F2F5FA",
+  "theme_color": "#14325C",
+  "icons": [
+    {"src": "img/icon-192.png", "sizes": "192x192", "type": "image/png"},
+    {"src": "img/icon-512.png", "sizes": "512x512", "type": "image/png"},
+    {"src": "img/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"}
+  ]
+}
