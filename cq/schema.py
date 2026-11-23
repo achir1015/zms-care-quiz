@@ -1,0 +1,138 @@
+"""資料表定義（唯一來源）：建表 SQL 與欄位中文說明。
+
+表名前綴：sys_＝系統（使用者、權限、設定、紀錄）、qb_＝題庫、qz_＝測驗紀錄。
+tools/gen_schema_doc.py 會依這裡產生 docs/資料表欄位明細.md。
+
+題目與選項內容裡的圖片以 [[img:編號]] 標記，圖片本身（PNG）存在 qb_image.png（MEDIUMBLOB）。
+"""
+
+# (表名, 中文名稱, [(欄位, SQL 型別與屬性, 中文說明)], 其他限制)
+TABLES = [
+    ("sys_meta", "系統參數", [
+        ("k", "VARCHAR(40) NOT NULL PRIMARY KEY", "參數代號"),
+        ("v", "TEXT", "參數值")], []),
+    ("sys_company", "單位設定（單一公司）", [
+        ("id", "INT NOT NULL PRIMARY KEY", "固定 1"),
+        ("name", "VARCHAR(120) NOT NULL DEFAULT ''", "公司、機構或訓練單位名稱"),
+        ("quiz_size", "INT NOT NULL DEFAULT 100", "每次測驗題數"),
+        ("pass_score", "INT NOT NULL DEFAULT 60", "及格分數"),
+        ("time_limit", "INT NOT NULL DEFAULT 100", "測驗時間（分鐘，0＝不限時）"),
+        ("include_old", "TINYINT NOT NULL DEFAULT 1", "出題包含歷屆試題才有的舊題目（0＝只用最新題庫與共同科目）"),
+        ("shuffle_options", "TINYINT NOT NULL DEFAULT 1", "選項順序隨機換位置（正確答案跟著變）")], []),
+    ("sys_user", "使用者", [
+        ("uid", "VARCHAR(30) NOT NULL PRIMARY KEY", "帳號"),
+        ("name", "VARCHAR(60) NOT NULL", "姓名"),
+        ("pw_hash", "VARCHAR(200) NOT NULL", "密碼雜湊（PBKDF2）"),
+        ("role", "VARCHAR(30) NOT NULL DEFAULT ''", "角色範本"),
+        ("dept", "VARCHAR(30) NOT NULL DEFAULT ''", "班別或部門"),
+        ("is_admin", "TINYINT NOT NULL DEFAULT 0", "系統管理員"),
+        ("active", "TINYINT NOT NULL DEFAULT 1", "啟用"),
+        ("last_login", "DATETIME NULL", "最近登入"),
+        ("created_at", "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP", "建立時間")], []),
+    ("sys_user_perm", "使用者權限", [
+        ("uid", "VARCHAR(30) NOT NULL", "帳號"),
+        ("func", "VARCHAR(10) NOT NULL", "功能代號"),
+        ("lvl", "TINYINT NOT NULL DEFAULT 0", "等級 0 無、1 查詢、2 維護")], ["PRIMARY KEY (uid, func)"]),
+    ("sys_audit_log", "操作紀錄", [
+        ("id", "BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY", "流水號"),
+        ("at", "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP", "時間"),
+        ("uid", "VARCHAR(30) NOT NULL DEFAULT ''", "使用者"),
+        ("action", "VARCHAR(30) NOT NULL", "動作"),
+        ("target", "VARCHAR(80) NOT NULL DEFAULT ''", "對象"),
+        ("detail", "TEXT", "內容（異動前 → 後）")], ["KEY ix_at (at)"]),
+    ("qb_unit", "單元（題庫工作項目與技能檢定共同科目）", [
+        ("code", "VARCHAR(4) NOT NULL PRIMARY KEY", "單元代號 01～06 工作項目、07～10 共同科目、99 待分類"),
+        ("name", "VARCHAR(60) NOT NULL", "單元名稱"),
+        ("grp", "VARCHAR(10) NOT NULL DEFAULT 'CARE'", "類別 CARE 照顧服務員工作項目、COMMON 共同科目、OTHER 其他"),
+        ("keywords", "VARCHAR(400) NOT NULL DEFAULT ''", "自動分類關鍵字（以逗號分隔；歷屆試題找不到題庫對應時使用）"),
+        ("sort", "INT NOT NULL DEFAULT 0", "排列順序")], []),
+    ("qb_source", "匯入的 PDF（題庫或年度學科測試試題）", [
+        ("id", "INT NOT NULL AUTO_INCREMENT PRIMARY KEY", "流水號"),
+        ("kind", "VARCHAR(6) NOT NULL", "BANK 題庫參考資料、EXAM 年度學科測試試題"),
+        ("year", "INT NOT NULL DEFAULT 0", "民國年度"),
+        ("title", "VARCHAR(120) NOT NULL DEFAULT ''", "名稱"),
+        ("version", "VARCHAR(40) NOT NULL DEFAULT ''", "題庫版次編號"),
+        ("file_name", "VARCHAR(200) NOT NULL DEFAULT ''", "原始檔名"),
+        ("sha256", "CHAR(64) NOT NULL", "檔案雜湊（同一份 PDF 不會重複匯入）"),
+        ("pages", "INT NOT NULL DEFAULT 0", "頁數"),
+        ("q_total", "INT NOT NULL DEFAULT 0", "拆出題數"),
+        ("q_new", "INT NOT NULL DEFAULT 0", "新增到題庫的題數"),
+        ("q_same", "INT NOT NULL DEFAULT 0", "題庫已有的題數"),
+        ("pdf", "LONGBLOB", "原始 PDF（重新拆題用）"),
+        ("note", "TEXT", "拆題提醒"),
+        ("imported_at", "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP", "匯入時間"),
+        ("imported_by", "VARCHAR(30) NOT NULL DEFAULT ''", "匯入人")], ["UNIQUE KEY uq_sha (sha256)"]),
+    ("qb_image", "題目圖片（題目或選項裡的圖形）", [
+        ("id", "INT NOT NULL AUTO_INCREMENT PRIMARY KEY", "圖片編號（題目文字以 [[img:編號]] 引用）"),
+        ("sha1", "CHAR(40) NOT NULL", "內容雜湊（相同圖片只存一份）"),
+        ("png", "MEDIUMBLOB NOT NULL", "PNG 圖檔"),
+        ("w", "INT NOT NULL DEFAULT 0", "寬（像素）"),
+        ("h", "INT NOT NULL DEFAULT 0", "高（像素）"),
+        ("disp_w", "INT NOT NULL DEFAULT 0", "建議顯示寬度（PDF 上的點數）"),
+        ("disp_h", "INT NOT NULL DEFAULT 0", "建議顯示高度")], ["UNIQUE KEY uq_sha1 (sha1)"]),
+    ("qb_question", "題庫題目（固定拆解：題目、四個選項、正確答案）", [
+        ("id", "INT NOT NULL AUTO_INCREMENT PRIMARY KEY", "題目編號"),
+        ("unit", "VARCHAR(4) NOT NULL DEFAULT '99'", "單元"),
+        ("bank_no", "VARCHAR(10) NOT NULL DEFAULT ''", "題庫題號（單元-題號，例 01-023；歷屆才有的題目空白）"),
+        ("stem", "TEXT NOT NULL", "題目（可含 [[img:編號]] 圖片）"),
+        ("opt1", "TEXT NOT NULL", "選項①"),
+        ("opt2", "TEXT NOT NULL", "選項②"),
+        ("opt3", "TEXT NOT NULL", "選項③"),
+        ("opt4", "TEXT NOT NULL", "選項④"),
+        ("answer", "TINYINT NOT NULL", "正確答案 1～4（對應上面固定順序的選項）"),
+        ("pin_last", "TINYINT NOT NULL DEFAULT 0", "最後一個選項固定在最後（以上皆是／以上皆非）"),
+        ("norm_key", "CHAR(40) NOT NULL", "比對鍵（題目＋選項＋答案正規化後的雜湊，判斷是不是同一題）"),
+        ("origin", "VARCHAR(6) NOT NULL DEFAULT 'BANK'", "來源 BANK 題庫、EXAM 歷屆試題才有、MANUAL 手動新增"),
+        ("first_year", "INT NOT NULL DEFAULT 0", "最早出現年度"),
+        ("last_year", "INT NOT NULL DEFAULT 0", "最近出現年度"),
+        ("exam_count", "INT NOT NULL DEFAULT 0", "在歷屆學科測試中出現次數"),
+        ("unit_auto", "TINYINT NOT NULL DEFAULT 1", "單元是自動判斷的（手動改過＝0）"),
+        ("deleted", "TINYINT NOT NULL DEFAULT 0", "題庫註明「本題刪題」"),
+        ("active", "TINYINT NOT NULL DEFAULT 1", "出題時使用"),
+        ("created_at", "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP", "建立時間"),
+        ("updated_at", "DATETIME NULL", "修改時間"),
+        ("updated_by", "VARCHAR(30) NOT NULL DEFAULT ''", "修改人")],
+     ["UNIQUE KEY uq_norm (norm_key)", "KEY ix_unit (unit)"]),
+    ("qb_appear", "題目出現在哪一份 PDF（記錄每年題目）", [
+        ("qid", "INT NOT NULL", "題目編號"),
+        ("source_id", "INT NOT NULL", "PDF"),
+        ("no", "INT NOT NULL DEFAULT 0", "該份 PDF 的題號"),
+        ("orig_answer", "TINYINT NOT NULL DEFAULT 0", "該份 PDF 上的答案號碼（選項順序可能和題庫不同）")],
+     ["PRIMARY KEY (qid, source_id)", "KEY ix_src (source_id)"]),
+    ("qz_attempt", "測驗紀錄（每次練習）", [
+        ("id", "INT NOT NULL AUTO_INCREMENT PRIMARY KEY", "流水號"),
+        ("uid", "VARCHAR(30) NOT NULL", "使用者"),
+        ("mode", "VARCHAR(6) NOT NULL", "MOCK 模擬測驗、UNIT 單元練習、YEAR 歷屆試題、WRONG 錯題複習"),
+        ("unit", "VARCHAR(4) NOT NULL DEFAULT ''", "單元（單元練習）"),
+        ("source_id", "INT NOT NULL DEFAULT 0", "歷屆試題 PDF"),
+        ("q_count", "INT NOT NULL DEFAULT 0", "題數"),
+        ("answered", "INT NOT NULL DEFAULT 0", "已作答題數"),
+        ("correct", "INT NOT NULL DEFAULT 0", "答對題數"),
+        ("score", "DECIMAL(5,1) NOT NULL DEFAULT 0", "分數（滿分 100）"),
+        ("status", "VARCHAR(6) NOT NULL DEFAULT 'OPEN'", "OPEN 作答中、DONE 已交卷"),
+        ("started_at", "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP", "開始時間"),
+        ("finished_at", "DATETIME NULL", "交卷時間"),
+        ("seconds", "INT NOT NULL DEFAULT 0", "作答秒數")], ["KEY ix_uid (uid, started_at)"]),
+    ("qz_answer", "測驗每一題（含選項換位結果與作答）", [
+        ("attempt_id", "INT NOT NULL", "測驗紀錄"),
+        ("seq", "INT NOT NULL", "第幾題"),
+        ("qid", "INT NOT NULL", "題目編號"),
+        ("perm", "CHAR(4) NOT NULL DEFAULT '1234'", "選項換位：第 i 個位置顯示原本第幾個選項，例 3142"),
+        ("correct_pos", "TINYINT NOT NULL", "換位後正確答案的位置 1～4"),
+        ("chosen", "TINYINT NOT NULL DEFAULT 0", "使用者選的位置（0＝未作答）"),
+        ("is_correct", "TINYINT NOT NULL DEFAULT 0", "答對")], ["PRIMARY KEY (attempt_id, seq)", "KEY ix_qid (qid)"]),
+]
+
+
+def ddl():
+    out = []
+    for name, title, cols, extra in TABLES:
+        body = ["  `%s` %s COMMENT '%s'" % (c, t, d.replace("'", "''")) for c, t, d in cols]
+        body += ["  " + x for x in extra]
+        out.append("CREATE TABLE IF NOT EXISTS `%s` (\n%s\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 "
+                   "COLLATE=utf8mb4_unicode_ci COMMENT='%s'" % (name, ",\n".join(body), title))
+    return out
+
+
+def columns(table):
+    return [c[0] for t in TABLES if t[0] == table for c in t[2]]
