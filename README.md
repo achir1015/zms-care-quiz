@@ -12,6 +12,7 @@ https://github.com/user-attachments/assets/2706bc8c-9d47-4d24-a061-f9723f6ac28d
 ## 下載
 
 - **Windows 11**：到 [Releases](https://github.com/achir1015/zms-care-quiz/releases/latest) 下載 `ZMSCareQuiz-Setup-1.0.0.exe`，安裝後桌面會有捷徑，打開就能用（資料庫內建，自動啟動與停止）。
+- **macOS**：下載 `ZMSCareQuiz-1.0.0-mac.dmg`，把 App 拖到「應用程式」（已通過 Apple 公證）。
 - 第一次開啟會自動載入**內建基本題庫 897 題（889 題可出題），每題附 AI 解說**；第一次使用請建立系統管理員帳號。
 
 ## 功能
@@ -36,7 +37,7 @@ https://github.com/user-attachments/assets/2706bc8c-9d47-4d24-a061-f9723f6ac28d
 | 平台 | 狀態 |
 |---|---|
 | Windows 11 | ✅ v1.0.0 |
-| MacBook Pro | 規劃中 |
+| MacBook Pro | ✅ v1.0.0（Apple 公證） |
 | 線上版（HTML） | 規劃中 |
 | iPhone／iPad（線上安裝） | 規劃中 |
 | Android | 規劃中 |
