@@ -1,4 +1,10 @@
 # 資料助秘照顧服務員學科測驗
+<img width="1919" height="1079" alt="image" src="https://github.com/user-attachments/assets/64a8bb44-f110-468d-b870-de58b6a023d5" />
+示範
+
+
+https://github.com/user-attachments/assets/2706bc8c-9d47-4d24-a061-f9723f6ac28d
+
 
 照顧服務員單一級技術士學科測驗練習系統。匯入每年的學科測驗 PDF，自動依單元拆出題目、四個選項、正確答案與圖片，
 存進 MariaDB；每次隨機出 100 題，選項順序隨機換位置（正確答案跟著變），記錄每次成績並畫出成長圖表。
