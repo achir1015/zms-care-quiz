@@ -1,6 +1,6 @@
 /* 離線快取：程式檔先用網路（拿到最新版），沒網路才用快取；圖片與語音先用快取。
  * 改了 docs/ 的程式或題庫就把 CACHE 的版本號加 1。 */
-const CACHE = "care-quiz-v3";
+const CACHE = "care-quiz-v4";
 const CORE = ["./", "./index.html", "./app/", "./app/index.html", "./app/style.css", "./app/bank.js", "./app/app.js",
   "./manifest.webmanifest", "./img/icon-192.png", "./img/favicon-64.png", "./img/q/1.png", "./img/q/2.png", "./img/q/3.png", "./img/q/4.png"];
 

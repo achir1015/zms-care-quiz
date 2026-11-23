@@ -77,6 +77,9 @@ try:
     n_bad = db.exec("UPDATE qb_question SET active=0 WHERE origin='REF' AND stem LIKE %s AND opt4 LIKE %s",
                     ("%發現案主有其他需求%", "%毫無意義%"))
     print("停用原始 PDF 有錯的題目：%d 題" % n_bad)
+    # 自動判斷不到單元、人工指定的題目（unit_auto=0：之後重新判斷單元也不會被改回去）
+    for unit, stem in (("09", "%小狗在道路或其他公共場所便溺時%"),):
+        db.exec("UPDATE qb_question SET unit=%s, unit_auto=0 WHERE stem LIKE %s", (unit, stem))
     out = os.path.join(HERE, "assets", "seed", "bank.json.gz")
     print(seedbank.dump(db, out), "%.1f MB" % (os.path.getsize(out) / 1e6))
     print(b.bank_stats()["total"])
