@@ -41,7 +41,7 @@ https://github.com/user-attachments/assets/2706bc8c-9d47-4d24-a061-f9723f6ac28d
 | MacBook Pro | ✅ v1.0.0（Apple 公證） |
 | 線上版（HTML） | ✅ [GitHub Pages](https://achir1015.github.io/zms-care-quiz/)（純網頁，內建題庫與解說） |
 | iPhone／iPad（線上安裝） | ✅ [安裝頁](https://achir1015.github.io/zms-care-quiz/ios/)（WKWebView 外殼＋內建網頁，離線可用；限登記過的裝置） |
-| Android | 規劃中 |
+| Android | ✅ `ZMSCareQuiz-版本-android.apk`（WebView 外殼＋內建網頁，離線可用、手機語音朗讀、程式內更新） |
 
 ## 開發
 

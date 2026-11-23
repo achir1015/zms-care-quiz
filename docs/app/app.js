@@ -75,11 +75,13 @@ function ask(msg, okText = "確定") {
 }
 
 /* ------------------------------------------------------------------ 語音（瀏覽器內建；優先挑自然語音） */
+const AND = window.ZMSAndroid;                   // Android App：WebView 沒有網頁語音 → 用手機的文字轉語音
 const TTS = {
-  ok: "speechSynthesis" in window,
+  ok: "speechSynthesis" in window || !!AND,
+  seq: 0,
   btn: null,
   list() {
-    if (!this.ok) return [];
+    if (!("speechSynthesis" in window)) return [];
     const vs = speechSynthesis.getVoices();
     const tw = vs.filter((v) => /zh[-_]TW/i.test(v.lang));
     const zh = tw.length ? tw : vs.filter((v) => /^zh/i.test(v.lang) && !/HK|yue/i.test(v.lang));
@@ -93,7 +95,8 @@ const TTS = {
   },
   natural() { const v = this.pick(); return !!v && /Natural|Online|Neural|Google|Mei-Jia|美佳/i.test(v.name); },
   stop() {
-    if (this.ok) speechSynthesis.cancel();
+    if (AND) { try { AND.ttsStop(); } catch (e) { /* 忽略 */ } }
+    else if (this.ok) speechSynthesis.cancel();
     if (this.btn) { this.btn.classList.remove("on"); this.btn.textContent = "🔊 朗讀"; this.btn = null; }
   },
   speak(text, btn) {
@@ -101,6 +104,14 @@ const TTS = {
     const again = btn && this.btn === btn;
     this.stop();
     if (again) return;                                   // 再按一次＝停止
+    if (AND) {
+      if (!AND.ttsAvailable()) { toast("手機沒有中文語音：請到「設定 → 文字轉語音」安裝 Google 語音服務的中文（台灣）"); return; }
+      const id = "u" + (++this.seq);
+      this.cur = id;
+      if (btn) { this.btn = btn; btn.classList.add("on"); btn.textContent = "⏹ 停止"; }
+      AND.ttsSpeak(String(text), Number(S.set.rate) || 1, id);
+      return;
+    }
     const v = this.pick();
     // 長文字分句排隊念（Chrome 一次念太長會中斷）
     const parts = String(text).match(/[^。！？；\n]+[。！？；\n]?/g) || [text];
@@ -116,7 +127,8 @@ const TTS = {
     });
   },
 };
-if (TTS.ok) speechSynthesis.onvoiceschanged = () => { if (location.hash === "#settings") route(); };
+window.__zmsTtsDone = (id) => { if (id === TTS.cur && TTS.btn) { TTS.btn.classList.remove("on"); TTS.btn.textContent = "🔊 朗讀"; TTS.btn = null; } };
+if ("speechSynthesis" in window) speechSynthesis.onvoiceschanged = () => { if (location.hash === "#settings") route(); };
 
 /* ------------------------------------------------------------------ 題目資料 */
 function poolAll() { return S.set.includeOld ? B.q : B.q.filter((q) => q.n); }
@@ -232,7 +244,7 @@ function vHome() {
   const ws = wrongIds().length;
   view.innerHTML = `
   <h1>照顧服務員學科測驗練習</h1>
-  ${UPD ? `<div class="card" style="border-left:5px solid var(--accent)"><div class="row"><div><b>⬆ 有新版 ${esc(UPD)}</b><div class="muted">按「更新」開啟安裝頁，測驗紀錄會保留</div></div><span class="sp"></span><a class="btn acc" href="${IOS_INSTALL}">更新</a></div></div>` : ""}
+  ${UPD ? `<div class="card" style="border-left:5px solid var(--accent)"><div class="row"><div><b>⬆ 有新版 ${esc(UPD)}</b><div class="muted">按「更新」開啟安裝頁，測驗紀錄會保留</div></div><span class="sp"></span>${AND ? `<button class="btn acc" id="updBtn">更新</button>` : `<a class="btn acc" href="${IOS_INSTALL}">更新</a>`}</div></div>` : ""}
   ${open ? `<div class="card" style="border-left:5px solid #F2B630"><div class="row"><div><b>還有一份測驗沒交卷</b><div class="muted">${esc(attemptTitle(open))}，已作答 ${open.items.filter((x) => x.ch > 0).length}／${open.items.length} 題</div></div><span class="sp"></span><a class="btn gold" href="#run">繼續作答</a></div></div>` : ""}
   <div class="tiles">
     <div class="tile"><b>${B.q.length}</b><span>可出題的題目</span></div>
@@ -250,6 +262,7 @@ function vHome() {
   ${g.count ? `<h2>最近成績</h2><div class="card">${chartSvg(g.scores.slice(-20), Number(S.set.pass) || 60)}</div>` : ""}
   <p class="muted">成績與錯題紀錄存在這台裝置的瀏覽器裡；換裝置請到「設定」備份與還原。也可以下載 Windows／Mac 電腦版（可匯入新年度的學科測驗 PDF、多位學員帳號）。</p>`;
   view.querySelectorAll("[data-go]").forEach((b) => (b.onclick = () => startQuiz(b.dataset.go)));
+  if ($("#updBtn")) $("#updBtn").onclick = () => andInstall();
 }
 
 /* ------------------------------------------------------------------ 畫面：開始測驗 */
@@ -543,7 +556,11 @@ function vSettings() {
     <div class="row" style="margin-top:12px"><button class="btn" id="sv">儲存</button><button class="btn out" id="df">恢復預設</button></div></div>
   <div class="card"><b>朗讀語音</b>
     <p class="muted" style="margin:4px 0 8px">用這台裝置瀏覽器內建的語音。用 Microsoft Edge 開啟會有「曉臻（自然）」等微軟自然語音，最不像機器人；iPhone／iPad 可在「設定 → 輔助使用 → 朗讀內容 → 聲音」下載「美佳（增強版）」。</p>
-    ${TTS.ok ? `<div class="row"><select id="vc" style="max-width:100%">${vs.length ? vs.map((v) => `<option value="${esc(v.name)}" ${v.name === (TTS.pick() || {}).name ? "selected" : ""}>${esc(v.name)}${/Natural|Online|Neural/i.test(v.name) ? "（自然）" : ""}</option>`).join("") : `<option>找不到中文語音</option>`}</select>
+    ${AND ? `<div class="row"><span>手機語音：${esc(AND.ttsVoice())}</span>
+      <label>速度 <select id="rt">${[0.8, 0.9, 1, 1.1, 1.2, 1.35].map((r) => `<option value="${r}" ${Number(st.rate) === r ? "selected" : ""}>${r}×</option>`).join("")}</select></label>
+      <button class="say" id="vt" style="margin-left:0">🔊 朗讀</button></div>
+      <p class="muted" style="margin:6px 0 0">Android 用手機的「文字轉語音」。到手機「設定 → 一般管理 → 文字轉語音」選 Google 語音服務，語言選中文（台灣），可下載較自然的高品質語音。</p>`
+    : TTS.ok ? `<div class="row"><select id="vc" style="max-width:100%">${vs.length ? vs.map((v) => `<option value="${esc(v.name)}" ${v.name === (TTS.pick() || {}).name ? "selected" : ""}>${esc(v.name)}${/Natural|Online|Neural/i.test(v.name) ? "（自然）" : ""}</option>`).join("") : `<option>找不到中文語音</option>`}</select>
       <label>速度 <select id="rt">${[0.8, 0.9, 1, 1.1, 1.2, 1.35].map((r) => `<option value="${r}" ${Number(st.rate) === r ? "selected" : ""}>${r}×</option>`).join("")}</select></label>
       <button class="say" id="vt" style="margin-left:0">🔊 朗讀</button></div>` : `<p class="muted">這個瀏覽器不支援朗讀。</p>`}</div>
   <div class="card"><b>成績紀錄</b>
@@ -551,8 +568,8 @@ function vSettings() {
     <div class="row"><button class="btn out" id="bk">⬇ 備份紀錄</button><label class="btn out">⬆ 還原紀錄<input type="file" id="rs" accept=".json,application/json" hidden></label>
       <button class="btn red" id="clr">清除全部紀錄</button></div></div>
   <div class="card"><b>關於</b><p class="muted" style="margin:4px 0 0">線上版 v${esc(B.v)}，內建 ${B.q.length} 題。電腦版（Windows／macOS）可以匯入新年度的學科測驗 PDF、建立多位學員帳號與權限：<a href="https://github.com/achir1015/zms-care-quiz/releases/latest" target="_blank" rel="noopener">下載電腦版</a>。</p>
-    ${IOS ? `<div class="row" style="margin-top:10px"><span>iPhone／iPad 版 v${esc(IOS.version)}</span><button class="btn sm out" id="chk">檢查更新</button></div>` : ""}</div>`;
-  if ($("#chk")) $("#chk").onclick = () => checkUpdate(true);
+    ${APP ? `<div class="row" style="margin-top:10px"><span>${APP.name} v${esc(APP.version)}</span><button class="btn sm out" id="chk">檢查更新</button></div>` : ""}</div>`;
+  if ($("#chk")) $("#chk").onclick = () => (AND ? setTimeout(() => andCheck(true), 10) : checkUpdate(true));
   $("#sv").onclick = () => {
     st.size = Math.max(10, Math.min(200, Number($("#sz").value) || 100));
     st.pass = Math.max(0, Math.min(100, Number($("#ps").value) || 60));
@@ -561,8 +578,8 @@ function vSettings() {
     save(); toast("已儲存"); vSettings();
   };
   $("#df").onclick = () => { S.set = Object.assign({}, DEF, { voice: st.voice, rate: st.rate }); save(); toast("已恢復預設"); vSettings(); };
-  if ($("#vc")) {
-    $("#vc").onchange = (e) => { st.voice = e.target.value; save(); };
+  if ($("#vc")) $("#vc").onchange = (e) => { st.voice = e.target.value; save(); };
+  if ($("#rt")) {
     $("#rt").onchange = (e) => { st.rate = Number(e.target.value); save(); };
     $("#vt").onclick = (e) => TTS.speak("你好，我是學科測驗的朗讀語音。照顧服務員協助案主翻身時，應先向案主說明。", e.currentTarget);
   }
@@ -613,6 +630,42 @@ async function checkUpdate(manual) {
   } catch (e) { if (manual) toast("檢查更新需要網路"); }
 }
 
+/* ------------------------------------------------------------------ Android App：檢查更新、下載安裝新版、返回鍵 */
+let andUpd = null;
+function andCheck(manual) {
+  let r;
+  try { r = JSON.parse(AND.checkUpdate()); } catch (e) { r = { status: "error" }; }
+  if (r.status !== "ok") { if (manual) toast("檢查更新需要網路"); return; }
+  if (r.url && newer(r.latest, r.current)) {
+    andUpd = r; UPD = "v" + r.latest;
+    if (location.hash === "#home" || !location.hash) vHome();
+    if (manual) andInstall(); else toast("有新版 v" + r.latest + "，可到首頁更新");
+  } else if (manual) toast("已經是最新版 v" + r.current);
+}
+async function andInstall() {
+  if (!andUpd || !(await ask(`下載並安裝新版 v${esc(andUpd.latest)}（目前 v${esc(andUpd.current)}）？測驗紀錄會保留。`, "下載並安裝"))) return;
+  AND.installUpdate(andUpd.url, andUpd.latest);
+  toast("下載中…", 2000);
+  const tm = setInterval(() => {
+    let st; try { st = JSON.parse(AND.updateStatus()); } catch (e) { return; }
+    const b = $("#updBtn");
+    if (st.state === "downloading") { if (b) b.textContent = "下載中 " + st.pct + "%"; }
+    else if (st.state === "permission") { clearInterval(tm); toast("請允許「學科測驗」安裝應用程式，再按一次更新", 6000); }
+    else if (st.state === "launching") { clearInterval(tm); if (b) b.textContent = "請在安裝畫面按「更新」"; }
+    else if (st.state === "error") { clearInterval(tm); if (b) b.textContent = "下載失敗，重試"; }
+  }, 500);
+}
+window.__zmsBack = () => {                              // 回傳 true＝網頁已處理
+  const m = document.querySelector(".mask");
+  if (m) { m.querySelector("[data-x]").click(); return true; }
+  if ($("#nav").classList.contains("open")) { $("#nav").classList.remove("open"); return true; }
+  if (location.hash && location.hash !== "#home") { location.hash = "#home"; return true; }
+  return false;
+};
+let APP = null;
+if (IOS) APP = { name: "iPhone／iPad 版", version: IOS.version };
+if (AND) { let info = {}; try { info = JSON.parse(AND.appInfo()); } catch (e) { /* 忽略 */ } APP = { name: "Android 版", version: info.version || B.v }; }
+
 /* ------------------------------------------------------------------ 路由 */
 function fitTop() { document.documentElement.style.setProperty("--top", $(".top").offsetHeight + "px"); }
 window.addEventListener("resize", fitTop);
@@ -632,9 +685,10 @@ view.addEventListener("click", (e) => {          // 朗讀按鈕（題目、答�
   const b = e.target.closest("[data-say]"); if (b) speakQ(Number(b.dataset.say), b);
 });
 $("#menuBtn").onclick = () => $("#nav").classList.toggle("open");
-$("#ver").textContent = IOS ? "iPhone／iPad 版 v" + IOS.version : "v" + B.v;
+$("#ver").textContent = APP ? APP.name + " v" + APP.version : "v" + B.v;
 if (IOS) setTimeout(() => checkUpdate(false), 1500);
+if (AND) setTimeout(() => andCheck(false), 1500);
 window.addEventListener("hashchange", route);
 window.addEventListener("beforeunload", () => { if (S.open) save(); });
 route();
-if ("serviceWorker" in navigator && location.protocol === "https:") navigator.serviceWorker.register("../sw.js").catch(() => {});
+if ("serviceWorker" in navigator && location.protocol === "https:" && !APP) navigator.serviceWorker.register("../sw.js").catch(() => {});

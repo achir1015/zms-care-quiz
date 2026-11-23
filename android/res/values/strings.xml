@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">資料助秘照顧服務員學科測驗</string>
+    <style name="AppTheme" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:colorPrimary">#1E4D8C</item>
+        <item name="android:colorPrimaryDark">#14325C</item>
+        <item name="android:colorAccent">#0FA294</item>
+        <item name="android:statusBarColor">#14325C</item>
+        <item name="android:navigationBarColor">#F2F5FA</item>
+        <item name="android:windowBackground">@android:color/white</item>
+    </style>
+</resources>
