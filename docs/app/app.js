@@ -232,6 +232,7 @@ function vHome() {
   const ws = wrongIds().length;
   view.innerHTML = `
   <h1>照顧服務員學科測驗練習</h1>
+  ${UPD ? `<div class="card" style="border-left:5px solid var(--accent)"><div class="row"><div><b>⬆ 有新版 ${esc(UPD)}</b><div class="muted">按「更新」開啟安裝頁，測驗紀錄會保留</div></div><span class="sp"></span><a class="btn acc" href="${IOS_INSTALL}">更新</a></div></div>` : ""}
   ${open ? `<div class="card" style="border-left:5px solid #F2B630"><div class="row"><div><b>還有一份測驗沒交卷</b><div class="muted">${esc(attemptTitle(open))}，已作答 ${open.items.filter((x) => x.ch > 0).length}／${open.items.length} 題</div></div><span class="sp"></span><a class="btn gold" href="#run">繼續作答</a></div></div>` : ""}
   <div class="tiles">
     <div class="tile"><b>${B.q.length}</b><span>可出題的題目</span></div>
@@ -549,7 +550,9 @@ function vSettings() {
     <p class="muted" style="margin:4px 0 8px">紀錄存在這台裝置的瀏覽器（目前 ${S.done.length} 次測驗）。清除瀏覽器資料會不見，建議偶爾備份。</p>
     <div class="row"><button class="btn out" id="bk">⬇ 備份紀錄</button><label class="btn out">⬆ 還原紀錄<input type="file" id="rs" accept=".json,application/json" hidden></label>
       <button class="btn red" id="clr">清除全部紀錄</button></div></div>
-  <div class="card"><b>關於</b><p class="muted" style="margin:4px 0 0">線上版 v${esc(B.v)}，內建 ${B.q.length} 題。電腦版（Windows／macOS）可以匯入新年度的學科測驗 PDF、建立多位學員帳號與權限：<a href="https://github.com/achir1015/zms-care-quiz/releases/latest" target="_blank" rel="noopener">下載電腦版</a>。</p></div>`;
+  <div class="card"><b>關於</b><p class="muted" style="margin:4px 0 0">線上版 v${esc(B.v)}，內建 ${B.q.length} 題。電腦版（Windows／macOS）可以匯入新年度的學科測驗 PDF、建立多位學員帳號與權限：<a href="https://github.com/achir1015/zms-care-quiz/releases/latest" target="_blank" rel="noopener">下載電腦版</a>。</p>
+    ${IOS ? `<div class="row" style="margin-top:10px"><span>iPhone／iPad 版 v${esc(IOS.version)}</span><button class="btn sm out" id="chk">檢查更新</button></div>` : ""}</div>`;
+  if ($("#chk")) $("#chk").onclick = () => checkUpdate(true);
   $("#sv").onclick = () => {
     st.size = Math.max(10, Math.min(200, Number($("#sz").value) || 100));
     st.pass = Math.max(0, Math.min(100, Number($("#ps").value) || 60));
@@ -585,6 +588,31 @@ function vSettings() {
   };
 }
 
+/* ------------------------------------------------------------------ iPhone／iPad App：檢查更新 */
+const IOS = window.ZMSIOS;
+const IOS_INSTALL = "https://achir1015.github.io/zms-care-quiz/ios/";
+let UPD = "";
+function newer(a, b) {                                  // a 比 b 新？
+  const p = (s) => String(s).replace(/^v/, "").split(".").map((x) => parseInt(x, 10) || 0);
+  const x = p(a), y = p(b);
+  for (let i = 0; i < 3; i++) if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0);
+  return false;
+}
+async function checkUpdate(manual) {
+  try {
+    const r = await fetch("https://api.github.com/repos/achir1015/zms-care-quiz/releases/latest", { cache: "no-store" });
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    const j = await r.json();
+    const has = (j.assets || []).some((a) => a.name === "ZMSCareQuiz-ios.ipa");
+    if (has && newer(j.tag_name, IOS.version)) {
+      UPD = j.tag_name;
+      if (location.hash === "#home" || !location.hash) vHome();
+      if (manual && (await ask(`有新版 ${esc(j.tag_name)}（目前 v${esc(IOS.version)}）。要開啟安裝頁更新嗎？測驗紀錄會保留。`, "開啟安裝頁"))) location.href = IOS_INSTALL;
+      else if (!manual) toast("有新版 " + j.tag_name + "，可到首頁更新");
+    } else if (manual) toast("已經是最新版 v" + IOS.version);
+  } catch (e) { if (manual) toast("檢查更新需要網路"); }
+}
+
 /* ------------------------------------------------------------------ 路由 */
 function fitTop() { document.documentElement.style.setProperty("--top", $(".top").offsetHeight + "px"); }
 window.addEventListener("resize", fitTop);
@@ -604,7 +632,8 @@ view.addEventListener("click", (e) => {          // 朗讀按鈕（題目、答�
   const b = e.target.closest("[data-say]"); if (b) speakQ(Number(b.dataset.say), b);
 });
 $("#menuBtn").onclick = () => $("#nav").classList.toggle("open");
-$("#ver").textContent = "v" + B.v;
+$("#ver").textContent = IOS ? "iPhone／iPad 版 v" + IOS.version : "v" + B.v;
+if (IOS) setTimeout(() => checkUpdate(false), 1500);
 window.addEventListener("hashchange", route);
 window.addEventListener("beforeunload", () => { if (S.open) save(); });
 route();
