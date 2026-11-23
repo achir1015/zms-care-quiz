@@ -78,7 +78,10 @@ try:
                     ("%發現案主有其他需求%", "%毫無意義%"))
     print("停用原始 PDF 有錯的題目：%d 題" % n_bad)
     # 自動判斷不到單元、人工指定的題目（unit_auto=0：之後重新判斷單元也不會被改回去）
-    for unit, stem in (("09", "%小狗在道路或其他公共場所便溺時%"),):
+    for unit, stem in (("09", "%小狗在道路或其他公共場所便溺時%"), ("09", "%聖嬰現象%是指哪一區域%"),
+                       ("09", "%水中溶氧量隨水溫之上升%"), ("10", "%不是造成全球暖化的元凶%"),
+                       ("10", "%降低由玻璃部分侵入之熱負載%"), ("10", "%自行煮水、包裝飲用水及包裝飲料%"),
+                       ("07", "%不服勞動檢查結果%")):
         db.exec("UPDATE qb_question SET unit=%s, unit_auto=0 WHERE stem LIKE %s", (unit, stem))
     out = os.path.join(HERE, "assets", "seed", "bank.json.gz")
     print(seedbank.dump(db, out), "%.1f MB" % (os.path.getsize(out) / 1e6))
