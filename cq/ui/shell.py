@@ -30,6 +30,7 @@ def menu():
         ("總覽", I.DASHBOARD_ROUNDED, "blue", [("home", "首頁", I.DASHBOARD_ROUNDED, "", 0)]),
         ("測驗練習", I.EDIT_NOTE, "teal", [
             ("quiz", "開始測驗", I.EDIT_NOTE, "QUIZ", 1),
+            ("review", "單元複習（答案與解說）", I.MENU_BOOK, "QUIZ", 1),
             ("growth", "我的成績與成長", I.SHOW_CHART, "QUIZ", 1)]),
         ("題庫", I.LIBRARY_BOOKS, "amber", [
             ("bank", "題庫瀏覽與維護", I.LIBRARY_BOOKS, "BANK", 1),
@@ -47,9 +48,9 @@ def menu():
 
 
 def build_screen(sid, ctx, **kw):
-    from . import admin, bankview, dashboard, helpview, quizview, reports
+    from . import admin, bankview, dashboard, helpview, quizview, reports, review
     table = {
-        "home": dashboard.Dashboard, "quiz": quizview.Quiz, "growth": quizview.Growth,
+        "home": dashboard.Dashboard, "quiz": quizview.Quiz, "growth": quizview.Growth, "review": review.Review,
         "bank": bankview.Bank, "stats": bankview.Stats, "import": bankview.Import,
         "scores": reports.Scores, "settings": reports.Settings,
         "users": admin.Users, "backup": admin.Backup, "update": admin.Update, "audit": admin.Audit,
@@ -193,6 +194,7 @@ class App:
         if dev and not first:
             u, _, w = dev.partition(":")
             self.books.login(u, w)
+            self._dev_import(os.environ.get("CQ_DEV_IMPORT", ""))
             self.main()
             route = (p.route or "").strip("/") or os.environ.get("CQ_DEV_ROUTE", "")
             sid, _, arg = route.partition(":")          # 例：bank:12、help:quiz、quiz:5（作答）
@@ -247,6 +249,20 @@ class App:
                      expand=True, spacing=0))
         p.update()
         log.info("ui: login shown (first=%s)", first)
+
+    def _dev_import(self, folder):
+        """開發測試用（只在 CQ_DEV_LOGIN 時）：開啟時匯入資料夾裡的 PDF，結果寫在 cq.log（驗證安裝版的拆題）。"""
+        if not folder or not os.path.isdir(folder):
+            return
+        names = sorted((n for n in os.listdir(folder) if n.lower().endswith(".pdf")),
+                       key=lambda n: (not n.startswith("照顧服務員學科"), n))
+        for n in names:
+            try:
+                with open(os.path.join(folder, n), "rb") as f:
+                    r = self.books.import_pdf(f.read(), n)
+                log.info("dev import %s: total=%s new=%s same=%s", n, r["total"], r["new"], r["same"])
+            except Exception as e:
+                log.info("dev import %s: %s", n, e)
 
     # ================================================================ 主畫面
     def allowed(self, func, lvl):

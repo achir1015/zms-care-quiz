@@ -159,7 +159,10 @@ class Base:
 
     # ================================================================ 單位與測驗設定
     def company(self):
-        return self.db.row("SELECT * FROM sys_company WHERE id=1") or {}
+        c = self.db.row("SELECT * FROM sys_company WHERE id=1") or {}
+        if c and not self.can("SYS", 2):
+            c = dict(c, ai_key="●●●●" if c.get("ai_key") else "")
+        return c
 
     settings_row = company
 
@@ -177,10 +180,15 @@ class Base:
                 if not lo <= v <= hi:
                     raise BizError("數值要在 %d～%d 之間" % (lo, hi))
                 vals[k] = v
+        if kw.get("ai_key") is not None and kw["ai_key"] != "●●●●":
+            vals["ai_key"] = (kw["ai_key"] or "").strip()
+        if kw.get("ai_model") is not None:
+            vals["ai_model"] = (kw["ai_model"] or "").strip()[:60] or "claude-opus-5-5"
         for k in ("include_old", "shuffle_options"):
             if kw.get(k) is not None:
                 vals[k] = int(bool(kw[k]))
         if vals:
             self.db.exec("UPDATE sys_company SET %s WHERE id=1" % ", ".join("%s=%%s" % k for k in vals),
                          tuple(vals.values()))
-        self.log("company", "", json.dumps(vals, ensure_ascii=False))
+        self.log("company", "", json.dumps({k: ("（已變更）" if k == "ai_key" else v) for k, v in vals.items()},
+                                           ensure_ascii=False))

@@ -73,11 +73,11 @@ class BankMixin:
         if with_counts:
             cnt = {r["unit"]: r for r in self.db.rows(
                 "SELECT unit, COUNT(*) total, SUM(active=1 AND deleted=0) usable, SUM(origin='BANK') bank, "
-                "SUM(origin='EXAM') exam_only, SUM(origin='MANUAL') manual, SUM(deleted=1) deleted, "
+                "SUM(origin='EXAM') exam_only, SUM(origin='REF') ref, SUM(origin='MANUAL') manual, SUM(deleted=1) deleted, "
                 "SUM(active=0) inactive, SUM(exam_count>0) appeared FROM qb_question GROUP BY unit")}
             for r in rows:
                 c = cnt.get(r["code"], {})
-                for k in ("total", "usable", "bank", "exam_only", "manual", "deleted", "inactive", "appeared"):
+                for k in ("total", "usable", "bank", "exam_only", "ref", "manual", "deleted", "inactive", "appeared"):
                     r[k] = int(c.get(k) or 0)
         return rows
 
@@ -141,6 +141,9 @@ class BankMixin:
         idx = _Index(self.db.rows("SELECT id, unit, stem, opt1, opt2, opt3, opt4, answer, norm_key, origin, unit_auto, "
                                   "first_year, last_year FROM qb_question"))
         stat = {"new": 0, "same": 0, "total": len(res["questions"]), "by_unit": {}, "warnings": list(res["warnings"])}
+        # 舊版題庫（年度比已匯入的題庫舊）不可覆蓋最新版的題號、單元與刪題標記
+        newest = kind == "BANK" and res["year"] >= int(self.db.value(
+            "SELECT COALESCE(MAX(year), 0) FROM qb_source WHERE kind='BANK'") or 0)
         with self.db.transaction():
             sid = self.db.exec(
                 "INSERT INTO qb_source (kind, year, title, version, file_name, sha256, pages, q_total, pdf, note, "
@@ -165,7 +168,7 @@ class BankMixin:
                 if hit:
                     r = hit["row"]
                     qid = r["id"]
-                    self._touch(r, kind, res["year"], q, sid)
+                    self._touch(r, kind, res["year"], q, sid, newest)
                     stat["same"] += 1
                 else:
                     unit = self._guess_unit(kind, q, stem, opts, ans, idx, kw_units, care_units)
@@ -173,7 +176,7 @@ class BankMixin:
                         "INSERT INTO qb_question (unit, bank_no, stem, opt1, opt2, opt3, opt4, answer, pin_last, "
                         "norm_key, origin, first_year, last_year, exam_count, deleted, active, unit_auto) "
                         "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 1)",
-                        (unit, ("%s-%03d" % (q["unit"], q["no"])) if kind == "BANK" else "", stem, *opts, ans,
+                        (unit, ("%s-%03d" % (q["unit"], q["no"])) if newest else "", stem, *opts, ans,
                          pin_last(opts), key, kind, res["year"], res["year"], 1 if kind == "EXAM" else 0,
                          int(q["deleted"]), 0 if q["deleted"] else 1))
                     r = {"id": qid, "unit": unit, "stem": stem, "opt1": opts[0], "opt2": opts[1], "opt3": opts[2],
@@ -204,7 +207,7 @@ class BankMixin:
                                   "WHERE origin='BANK'"))
         changed = 0
         for r in self.db.rows("SELECT id, unit, stem, opt1, opt2, opt3, opt4, answer FROM qb_question "
-                              "WHERE origin='EXAM' AND unit_auto=1"):
+                              "WHERE origin IN ('EXAM', 'REF') AND unit_auto=1"):
             opts = [r["opt1"], r["opt2"], r["opt3"], r["opt4"]]
             u = self._guess_unit("EXAM", {"unit": ""}, r["stem"], opts, r["answer"], ref, kw_units, care_units)
             if u != r["unit"]:
@@ -214,14 +217,16 @@ class BankMixin:
             self.log("reclassify", "", "%d 題改單元" % changed)
         return changed
 
-    def _touch(self, r, kind, year, q, sid):
-        """題庫已有這一題：更新出現年度；題庫 PDF 的單元與題號優先。"""
+    def _touch(self, r, kind, year, q, sid, newest=True):
+        """題庫已有這一題：更新出現年度；最新版題庫 PDF 的單元與題號優先。"""
         sets, args = ["first_year=IF(first_year=0 OR first_year>%s, %s, first_year)",
                       "last_year=GREATEST(last_year, %s)"], [year, year, year]
         if kind == "EXAM":
             sets.append("exam_count=exam_count+1")
-        elif q["deleted"]:
-            pass                       # 題庫裡重複而被刪的那一題：保留原本那一題，不動它
+        elif kind == "REF":
+            sets.append("origin=IF(origin='EXAM', 'REF', origin)")
+        elif q["deleted"] or not newest:
+            pass                       # 題庫裡重複而被刪的那一題、或舊版題庫：保留原本那一題，不動它
         else:
             sets += ["origin=IF(origin='MANUAL', origin, 'BANK')", "bank_no=%s", "deleted=%s"]
             args += ["%s-%03d" % (q["unit"], q["no"]), int(q["deleted"])]
@@ -390,7 +395,7 @@ class BankMixin:
     def bank_stats(self):
         """各單元題庫數、總題庫數、每年度新增題數。"""
         units = self.units(with_counts=True)
-        tot = {k: sum(u[k] for u in units) for k in ("total", "usable", "bank", "exam_only", "manual", "deleted",
+        tot = {k: sum(u[k] for u in units) for k in ("total", "usable", "bank", "exam_only", "ref", "manual", "deleted",
                                                       "inactive", "appeared")}
         years = self.db.rows("SELECT id, kind, year, title, q_total, q_new, q_same, imported_at FROM qb_source "
                              "ORDER BY year, kind")
@@ -408,3 +413,34 @@ class BankMixin:
     def random_question(self):
         ids = self.db.rows("SELECT id FROM qb_question WHERE active=1 AND deleted=0")
         return self.question(random.choice(ids)["id"]) if ids else None
+
+    # ================================================================ 試題解說
+    def save_explain(self, qid, text, by=None):
+        self.need("BANK")
+        self.db.exec("UPDATE qb_question SET explain_text=%s, explain_by=%s, explain_at=NOW() WHERE id=%s",
+                     ((text or "").strip() or None, (by or self.uid)[:30], qid))
+        self.log("explain", qid, (text or "")[:80])
+
+    def ai_explain(self, qid):
+        """用 Claude 產生一題的解說並存起來（需要題庫維護權限與 API 金鑰）。"""
+        self.need("BANK")
+        from . import ai
+        q = self.db.row("SELECT q.*, u.name unit_name FROM qb_question q LEFT JOIN qb_unit u ON u.code=q.unit "
+                        "WHERE q.id=%s", (qid,))
+        if not q:
+            raise BizError("找不到這一題")
+        c = self.db.row("SELECT ai_key, ai_model FROM sys_company WHERE id=1") or {}
+        opts = [q["opt%d" % i] for i in range(1, 5)]
+        try:
+            text = ai.explain(c.get("ai_key"), {"stem": q["stem"], "options": opts, "unit": q["unit_name"] or "",
+                                                "answer_text": opts[q["answer"] - 1]}, c.get("ai_model"))
+        except ai.AIError as e:
+            raise BizError(str(e))
+        self.db.exec("UPDATE qb_question SET explain_text=%s, explain_by=%s, explain_at=NOW() WHERE id=%s",
+                     (text, (c.get("ai_model") or ai.DEFAULT_MODEL)[:30], qid))
+        self.log("ai_explain", qid, text[:80])
+        return text
+
+    def missing_explain_ids(self):
+        return [r["id"] for r in self.db.rows("SELECT id FROM qb_question WHERE deleted=0 AND "
+                                              "(explain_text IS NULL OR explain_text='') ORDER BY id")]

@@ -1,4 +1,5 @@
 """第一次使用的預設資料：權限功能與角色、單元（題庫工作項目＋技能檢定共同科目）。"""
+import os
 
 # 權限功能：(代號, 名稱, 說明)；等級 0 無、1 查詢、2 維護
 FUNCS = [
@@ -58,3 +59,6 @@ def seed_all(db, first=False):
     db.exec("INSERT IGNORE INTO sys_company (id, name) VALUES (1, '')")
     db.exec_many("INSERT IGNORE INTO qb_unit (code, name, grp, keywords, sort) VALUES (%s, %s, %s, %s, %s)",
                  [(c, n, g, k, i + 1) for i, (c, n, g, k) in enumerate(UNITS)])
+    from . import seedbank
+    if not os.environ.get("CQ_NO_SEED"):
+        seedbank.load(db)                # 內建基本題庫（題庫還是空的時候）

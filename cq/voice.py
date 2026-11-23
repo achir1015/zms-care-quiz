@@ -26,6 +26,8 @@ def help_mp3(key):
 class _Mci:
     """Windows 內建 MCI 播放 MP3（不需額外套件）。所有指令都在同一條背景執行緒送出。"""
 
+    on_fail = None                 # 自然語音失敗時通知畫面
+
     def __init__(self):
         import ctypes
         import queue
@@ -142,7 +144,12 @@ class Speaker:
         if mp3:
             self.play_file(mp3)
             return
-        self._offline(text)
+        # 不退回 Windows 內建的機器人語音：通知畫面「需要網路」
+        if self.on_fail:
+            try:
+                self.on_fail("自然語音需要網路（第一次朗讀時下載，之後離線也能播放）")
+            except Exception:
+                pass
 
     @staticmethod
     def _neural(text):

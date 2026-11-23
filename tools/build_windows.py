@@ -38,7 +38,7 @@ def pack():
     cmd = [flet, "pack", "main.py", "-D", "-y", "-n", APP_ID, "-i", "packaging/icon.ico", "--distpath", "dist",
            "--add-data", "assets:assets",
            "--hidden-import", "edge_tts", "--hidden-import", "pymysql", "--hidden-import", "certifi",
-           "--hidden-import", "qrcode", "--hidden-import", "pymupdf", "--pyinstaller-build-args=--collect-all=pymupdf",
+           "--hidden-import", "qrcode", "--hidden-import", "pymupdf", "--hidden-import", "anthropic", "--pyinstaller-build-args=--collect-all=anthropic", "--pyinstaller-build-args=--collect-all=pymupdf",
            "--pyinstaller-build-args=--collect-all=flet_web",
            "--pyinstaller-build-args=--collect-all=flet_audio", "--pyinstaller-build-args=--collect-submodules=uvicorn",
            "--product-name", APP_NAME, "--file-description", APP_NAME, "--product-version", APP_VERSION,

@@ -295,7 +295,7 @@ ACTIONS = {"login": "登入", "logout": "登出", "login_fail": "登入失敗", 
            "user_save": "儲存使用者", "user_delete": "刪除使用者", "company": "測驗設定", "backup": "備份",
            "restore": "還原", "update": "版本更新", "import_pdf": "匯入 PDF", "delete_source": "刪除 PDF",
            "unit": "修改單元", "reclassify": "重新分類", "question": "修改題目", "question_add": "新增題目",
-           "question_active": "啟用／停用題目", "quiz_start": "開始測驗", "quiz_submit": "交卷"}
+           "question_active": "啟用／停用題目", "quiz_start": "開始測驗", "quiz_submit": "交卷", "explain": "修改解說", "ai_explain": "AI 產生解說"}
 
 
 class Audit(ft.Column):

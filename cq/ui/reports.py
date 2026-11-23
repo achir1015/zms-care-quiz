@@ -50,6 +50,11 @@ class Settings(ft.Column):
         self.limit = T.field("測驗時間", c.get("time_limit") or 0, width=150, suffix="分鐘",
                              helper="0＝不限時")
         self.shuffle = T.switch("選項順序隨機換位置（正確答案跟著變）", c.get("shuffle_options", 1))
+        self.ai_key = T.field("Claude API 金鑰（補產生 AI 解說用，可不填）", c.get("ai_key") or "", width=420,
+                              password=True, can_reveal_password=True)
+        self.ai_model = T.field("模型", c.get("ai_model") or "claude-opus-5-5", width=200)
+        self.ai_msg = T.muted("", 12)
+        self.ai_bar = ft.ProgressBar(value=0, visible=False, color=T.ACCENT, bgcolor="#E6F4F1", bar_height=8)
         self.old = T.switch("出題包含「歷屆試題才有」的舊題目（關掉＝只用最新題庫＋共同科目）", c.get("include_old", 1))
         super().__init__([
             T.page_header(I.TUNE, "測驗設定", "題數、及格分數、時間與出題範圍（所有使用者共用）", "pink",
@@ -58,10 +63,47 @@ class Settings(ft.Column):
                 self.name, ft.Row([self.size, self.pass_, self.limit], spacing=14, wrap=True),
                 self.shuffle, self.old,
                 T.muted("說明：正式學科測試是 80 題、100 分鐘；本系統依需求預設每次 100 題，每題 1 分。"
-                        "選項換位時，「以上皆是／以上皆非」會固定在最後一個。", 12)], spacing=14), padding=22)],
+                        "選項換位時，「以上皆是／以上皆非」會固定在最後一個。", 12)], spacing=14), padding=22),
+            T.card(ft.Column([
+                ft.Row([T.icon_tile(I.AUTO_AWESOME, "violet", 34),
+                        ft.Text("AI 試題解說", size=16, weight=ft.FontWeight.W_700)]),
+                T.muted("內建題庫已附 AI 解說，不必設定也能用。之後匯入的新題目沒有解說時，填入 Claude API 金鑰，"
+                        "按「補產生缺少的解說」由 AI 補上（會產生 API 費用，每題約幾毛錢）。", 12),
+                ft.Row([self.ai_key, self.ai_model], spacing=14, wrap=True),
+                ft.Row([T.btn("補產生缺少的解說", I.AUTO_AWESOME, lambda e: self.fill_ai(), kind="outline"), self.ai_msg],
+                       spacing=12),
+                self.ai_bar], spacing=12), padding=22)],
             spacing=14, expand=True, scroll=ft.ScrollMode.AUTO)
 
     def save(self):
         self.ctx.guard(self.ctx.books.save_company, name=self.name.value, quiz_size=self.size.value,
                        pass_score=self.pass_.value, time_limit=self.limit.value, include_old=self.old.value,
-                       shuffle_options=self.shuffle.value, ok="測驗設定已儲存")
+                       shuffle_options=self.shuffle.value, ai_key=self.ai_key.value, ai_model=self.ai_model.value,
+                       ok="測驗設定已儲存")
+
+    def fill_ai(self):
+        b = self.ctx.books
+        self.save()
+        ids = b.missing_explain_ids()
+        if not ids:
+            self.ai_msg.value = "所有題目都已有解說"
+            self.update()
+            return
+
+        def work():
+            self.ai_bar.visible = True
+            ok = 0
+            for i, qid in enumerate(ids):
+                try:
+                    b.ai_explain(qid)
+                    ok += 1
+                except Exception as ex:
+                    self.ai_msg.value = "第 %d 題失敗：%s" % (i + 1, ex)
+                    self.update()
+                    break
+                self.ai_bar.value = (i + 1) / len(ids)
+                self.ai_msg.value = "已產生 %d／%d 題" % (ok, len(ids))
+                self.update()
+            self.ai_bar.visible = False
+            self.update()
+        self.ctx.page.run_thread(work)

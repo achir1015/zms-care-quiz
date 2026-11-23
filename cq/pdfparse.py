@@ -10,6 +10,7 @@
 """
 import hashlib
 import io
+import os
 import re
 import unicodedata
 
@@ -24,8 +25,9 @@ NOISE = [
     re.compile(r"^\d{2,3}\s*照顧服務員\s*單一\s*\d+\s*-\s*\d+.*$"),
     re.compile(r"^\d{2,3}\s*照顧服務員\s*單一\s*$"),
     re.compile(r"^准考證號碼"), re.compile(r"^姓$"), re.compile(r"^名[：:]$"),
+    re.compile(r"^\d{1,3}$"),                          # 單獨一行的頁碼
 ]
-UNIT_RE = re.compile(r"17800\s*照顧服務員\s*單一\s*工作項目\s*(\d+)\s*[：:]\s*(\S+)")
+UNIT_RE = re.compile(r"17800\s*照顧服務員\s*單一級?\s*工作項目\s*(\d+)\s*[：:]\s*(\S+)")
 YEAR_RE = re.compile(r"(\d{2,3})\s*年度?\s*(?:第\s*(\d)\s*梯次)?\s*17800")
 BANK_RE = re.compile(r"學科測試參考資料|檔案名稱\s*:\s*\d+A\d+")
 VERSION_RE = re.compile(r"檔案名稱\s*:\s*(\S+)|版次編號\s*:\s*(\S+)|公告日期\s*:\s*([\d 年月日]+)")
@@ -113,6 +115,7 @@ def _page_tokens(doc, page, images):
     for r in rows:
         line = "".join(t[3] for t in sorted(r["toks"], key=lambda t: t[2])).strip()
         line = _squash(re.sub(r"[ 　]+", " ", line))
+        line = line.replace("⑤", "窗")                 # 114 參考題庫的「窗」字被編成 ⑤（選項只有 ①～④）
         if line:
             out.append(line)
     return out
@@ -137,8 +140,16 @@ def parse(path_or_bytes, name=""):
                         "", ln) for ln in lines]
     lines = [ln for ln in lines if not any(p.match(ln) for p in NOISE)]
     head = "\n".join(lines[:12])
-    kind = "BANK" if BANK_RE.search(head) else "EXAM"
+    # 種類：有「工作項目」分單元＝BANK 題庫；標題寫「參考題庫／題庫」但沒分單元＝REF 參考題庫；其他＝EXAM 年度試題
+    has_units = any(UNIT_RE.search(ln) for ln in lines[:40])
+    if BANK_RE.search(head) or has_units:
+        kind = "BANK"
+    elif re.search(r"題庫", head) and not re.search(r"學科測試試題", head):
+        kind = "REF"
+    else:
+        kind = "EXAM"
     year, batch, version, title = 0, 0, "", ""
+    base = re.sub(r"\.pdf$", "", os.path.basename(name or ""), flags=re.I).strip()
     if kind == "EXAM":
         m = YEAR_RE.search(_squash(head.replace(" ", " ")))
         if m:
@@ -152,11 +163,18 @@ def parse(path_or_bytes, name=""):
         m = re.search(r"公告日期\s*:\s*(\d+)\s*年", head)
         if m:
             year = int(m.group(1))
-        title = title or "學科題庫"
     if not year:
-        m = re.search(r"(\d{3})", name or "")
-        if m and 100 <= int(m.group(1)) <= 199:
+        m = re.search(r"(?<!\d)(1\d{2})(?!\d)", base)
+        if m:
             year = int(m.group(1))
+    if not year:                                    # 檔名沒有年度：用 PDF 建立日期換算民國年
+        m = re.match(r"D:(\d{4})", (doc.metadata or {}).get("creationDate") or "")
+        if m and int(m.group(1)) > 1911:
+            year = int(m.group(1)) - 1911
+    if kind == "BANK" and not title:
+        title = ("%d 年版學科題庫" % year) if year else "學科題庫"
+    if kind == "REF":
+        title = ("%d 年度參考題庫" % year) if year else "參考題庫"
 
     # 串成一長串，記下工作項目（單元）的切換點
     units, stream, marks = [], [], []

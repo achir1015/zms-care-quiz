@@ -5,6 +5,7 @@ import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+os.environ.setdefault("CQ_NO_SEED", "1")          # 測試資料庫不自動載入內建題庫（個別測試自己載入）
 from cq.database import DB  # noqa: E402
 from cq.dbserver import LocalDatabaseServer  # noqa: E402
 from cq.settings import Settings, find_mariadb  # noqa: E402

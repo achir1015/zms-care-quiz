@@ -134,7 +134,7 @@ class QuizMixin:
         if not t or (t["uid"] != self.uid and not self.can("RPT", 1)):
             raise BizError("找不到這次測驗")
         done = t["status"] == "DONE"
-        rows = self.db.rows("SELECT x.*, q.stem, q.opt1, q.opt2, q.opt3, q.opt4, q.unit, q.bank_no FROM qz_answer x "
+        rows = self.db.rows("SELECT x.*, q.stem, q.opt1, q.opt2, q.opt3, q.opt4, q.unit, q.bank_no, q.explain_text FROM qz_answer x "
                             "JOIN qb_question q ON q.id=x.qid WHERE x.attempt_id=%s ORDER BY x.seq", (aid,))
         items = []
         for r in rows:
@@ -144,6 +144,7 @@ class QuizMixin:
             if done:
                 it["correct_pos"] = r["correct_pos"]
                 it["is_correct"] = r["is_correct"]
+                it["explain"] = r["explain_text"] or ""
             items.append(it)
         return {"attempt": t, "items": items, "done": done}
 
@@ -243,3 +244,29 @@ class QuizMixin:
             "ROUND(100 - SUM(x.is_correct) * 100.0 / COUNT(*), 1) wrong_rate FROM qz_answer x "
             "JOIN qz_attempt t ON t.id=x.attempt_id AND t.status='DONE' JOIN qb_question q ON q.id=x.qid "
             "GROUP BY q.id HAVING n >= 2 ORDER BY wrong_rate DESC, n DESC LIMIT %s", (limit,))
+
+    # ================================================================ 單元複習（瀏覽題庫＋看答案與解說）
+    def review_items(self, unit="", kw="", only_wrong=False):
+        """單元複習：回傳題目（選項已隨機換位、附正確位置與解說）。學員看得到答案，所以只要測驗練習權限。"""
+        self.need("QUIZ", 1)
+        where, args = ["q.active=1", "q.deleted=0"], []
+        if unit:
+            where.append("q.unit=%s")
+            args.append(unit)
+        if kw:
+            where.append("CONCAT(q.stem, q.opt1, q.opt2, q.opt3, q.opt4, COALESCE(q.explain_text,'')) LIKE %s")
+            args.append("%" + kw.strip() + "%")
+        if only_wrong:
+            ids = self._wrong_ids() or [0]
+            where.append("q.id IN (%s)" % ",".join(str(int(i)) for i in ids))
+        rows = self.db.rows("SELECT q.id, q.unit, q.bank_no, q.stem, q.opt1, q.opt2, q.opt3, q.opt4, q.answer, "
+                            "q.pin_last, q.explain_text FROM qb_question q WHERE %s ORDER BY q.bank_no='', q.bank_no, q.id"
+                            % " AND ".join(where), tuple(args))
+        shuffle = bool(self.company().get("shuffle_options", 1))
+        out = []
+        for i, r in enumerate(rows):
+            perm = make_perm(r["pin_last"], shuffle)
+            out.append({"seq": i + 1, "qid": r["id"], "unit": r["unit"], "bank_no": r["bank_no"], "stem": r["stem"],
+                        "options": [r["opt%s" % k] for k in perm], "correct_pos": perm.index(str(r["answer"])) + 1,
+                        "explain": r["explain_text"] or ""})
+        return out

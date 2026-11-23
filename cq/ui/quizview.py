@@ -7,7 +7,7 @@ import flet as ft
 from .. import rocdate
 from ..seed import MODES
 from . import theme as T
-from .qview import LETTERS, line_chart, plain, rate_bar, rich
+from .qview import LETTERS, explain_box, line_chart, plain, rate_bar, rich, speak_text_of
 
 I = ft.Icons
 MODE_STYLE = {"MOCK": (I.ASSIGNMENT, "blue"), "UNIT": (I.CATEGORY, "teal"), "YEAR": (I.HISTORY_EDU, "violet"),
@@ -245,10 +245,15 @@ class QuizRun(ft.Row):
             bg = "#F6FFF9" if ok else "#FFF7F7"
         elif ch:
             border_color = "#9CC7C1"
+        extra = []
+        if self.done:
+            ans = it["options"][it["correct_pos"] - 1]
+            extra.append(explain_box(self.ctx, it.get("explain", ""),
+                                     lambda it=it, a=ans: speak_text_of(it["stem"], a, it.get("explain", ""))))
         return ft.Container(ft.Column([
             ft.Row(head, spacing=8),
             rich(self.ctx, it["stem"], 16, weight=ft.FontWeight.W_500),
-            ft.Column(opts, spacing=8)], spacing=10), padding=18, bgcolor=bg, border_radius=14,
+            ft.Column(opts, spacing=8)] + extra, spacing=10), padding=18, bgcolor=bg, border_radius=14,
             border=ft.Border.only(left=ft.BorderSide(4, border_color), top=ft.BorderSide(1, T.LINE),
                                   right=ft.BorderSide(1, T.LINE), bottom=ft.BorderSide(1, T.LINE)),
             key=ft.ScrollKey("q%d" % seq))

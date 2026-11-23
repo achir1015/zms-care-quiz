@@ -115,3 +115,24 @@ def rate_bar(label, rate, recent=None, sub="", width=None):
         ft.ProgressBar(value=max(0.0, min(1.0, rate / 100)), color=tone, bgcolor="#EEF2F7", bar_height=10,
                        border_radius=5),
         T.muted(sub, 11) if sub else ft.Container()], spacing=4, width=width)
+
+
+def speak_text_of(stem, answer_text, explain):
+    """朗讀用文字：題目、正確答案、解說（圖片標記拿掉）。"""
+    def clean(s):
+        return IMG_RE.sub("如圖", s or "")
+    return "題目：%s。正確答案是：%s。%s" % (clean(stem), clean(answer_text), clean(explain))
+
+
+def explain_box(ctx, explain, speak=None, title="AI 解說"):
+    """解說框：淡黃底、燈泡圖示＋朗讀按鈕（微軟神經語音）。沒有解說時顯示提示。"""
+    head = [ft.Icon(ft.Icons.TIPS_AND_UPDATES, color="#B45309", size=18),
+            ft.Text(title, size=13, weight=ft.FontWeight.W_700, color="#92400E", expand=True)]
+    if speak and explain:
+        head.append(ft.IconButton(ft.Icons.VOLUME_UP, icon_color="#B45309", icon_size=20, tooltip="朗讀題目、答案與解說",
+                                  on_click=lambda e: ctx.say_text(speak())))
+    body = ft.Text(explain, size=14, color="#3F2D0C", selectable=True) if explain else \
+        T.muted("這題還沒有解說（管理員可在「題庫瀏覽與維護」用 AI 產生）", 12)
+    return ft.Container(ft.Column([ft.Row(head, spacing=6), body], spacing=4), bgcolor="#FFF8E6",
+                        border=ft.Border.all(1, "#F5D9A8"), border_radius=10,
+                        padding=ft.Padding.only(left=12, right=8, top=6, bottom=10))

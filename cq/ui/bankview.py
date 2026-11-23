@@ -4,10 +4,12 @@ import os
 import flet as ft
 
 from . import theme as T
-from .qview import LETTERS, plain, rich
+from .qview import LETTERS, explain_box, plain, rich, speak_text_of
 
 I = ft.Icons
-ORIGIN = {"BANK": ("題庫", "blue"), "EXAM": ("歷屆才有", "violet"), "MANUAL": ("手動新增", "amber")}
+ORIGIN = {"BANK": ("題庫", "blue"), "REF": ("參考題庫", "teal"), "EXAM": ("歷屆才有", "violet"),
+          "MANUAL": ("手動新增", "amber")}
+KIND_NAMES = {"BANK": "學科題庫", "REF": "參考題庫", "EXAM": "學科測試試題"}
 GRP_TONE = {"CARE": "teal", "COMMON": "violet", "OTHER": "slate"}
 
 
@@ -104,8 +106,8 @@ class Bank(ft.Row):
                              border_radius=15, bgcolor=T.SUCCESS if right else "#EEF2F7", alignment=ft.Alignment.CENTER),
                 rich(self.ctx, q["opt%d" % i], 14)], spacing=10), padding=10, border_radius=10,
                 bgcolor="#E8F7EE" if right else "#FBFCFE", border=ft.Border.all(1, "#86D3A3" if right else T.LINE)))
-        ap = [ft.Row([T.chip("%s %s" % ("題庫" if a["kind"] == "BANK" else "%s 年度" % a["year"], ""), "blue"
-                             if a["kind"] == "BANK" else "violet"),
+        ap = [ft.Row([T.chip("%s %s" % (a["year"] or "", KIND_NAMES.get(a["kind"], "")), "violet" if a["kind"] == "EXAM"
+                             else "blue"),
                       T.muted("第 %d 題，原答案 (%d)" % (a["no"], a["orig_answer"]), 12)]) for a in q["appears"]]
         st = q["stats"] or {}
         n = int(st.get("n") or 0)
@@ -121,6 +123,12 @@ class Bank(ft.Row):
                    ([] if q["active"] else [T.chip("停用", "slate")]), wrap=True, spacing=6),
             rich(self.ctx, q["stem"], 16, weight=ft.FontWeight.W_600, expand=False),
             ft.Column(opts, spacing=8),
+            explain_box(self.ctx, q.get("explain_text") or "",
+                        lambda: speak_text_of(q["stem"], q["opt%d" % q["answer"]], q.get("explain_text") or ""),
+                        "解說" + ("（%s）" % q["explain_by"] if q.get("explain_by") else "")),
+            ft.Row(([T.btn("修改解說", I.EDIT_NOTE, lambda e: self.edit_explain(q), kind="ghost"),
+                     T.btn("AI 重新產生", I.AUTO_AWESOME, lambda e: self.ai_explain(q), kind="ghost")]
+                    if self.can_edit else []), spacing=4),
             ft.Divider(height=6, color=T.LINE),
             ft.Text("出現紀錄", size=14, weight=ft.FontWeight.W_700),
             ft.Column(ap or [T.muted("（手動新增）", 12)], spacing=4),
@@ -130,6 +138,27 @@ class Bank(ft.Row):
             ft.Row(acts, spacing=10)], spacing=10)
         if refresh:
             self.update()
+
+    def edit_explain(self, q):
+        c = self.ctx
+        box = T.field("解說（用選項的文字說明，不要寫選項編號，因為出題時選項會換位置）", q.get("explain_text") or "",
+                      multiline=True, min_lines=5, max_lines=10)
+
+        def save(e):
+            if c.guard(c.books.save_explain, q["id"], box.value, ok="解說已儲存"):
+                c.close()
+                self.show(q["id"])
+        c.dialog("修改解說", box, [T.btn("取消", kind="ghost", on_click=lambda e: c.close()),
+                                   T.btn("儲存", I.SAVE, save)], icon=I.TIPS_AND_UPDATES, width=620)
+
+    def ai_explain(self, q):
+        c = self.ctx
+        c.toast("AI 產生解說中…")
+
+        def work():
+            if c.guard(c.books.ai_explain, q["id"], ok="AI 解說已更新"):
+                self.show(q["id"])
+        c.page.run_thread(work)
 
     def toggle(self, q):
         if self.ctx.guard(self.ctx.books.set_active, q["id"], not q["active"], ok="已更新"):
@@ -173,7 +202,8 @@ class Stats(ft.Column):
         ks = T.kpis([
             T.kpi("總題庫數", str(t["usable"]), I.LIBRARY_BOOKS, "blue", "出題中（全部 %d 題）" % t["total"]),
             T.kpi("題庫參考資料", str(t["bank"]), I.MENU_BOOK, "teal", (lb["version"] if lb else "尚未匯入")),
-            T.kpi("歷屆試題新增", str(t["exam_only"]), I.HISTORY_EDU, "violet", "題庫沒有、考卷有的題目"),
+            T.kpi("歷屆／參考題庫新增", str(t["exam_only"] + t.get("ref", 0)), I.HISTORY_EDU, "violet",
+                  "歷屆 %d、參考題庫 %d" % (t["exam_only"], t.get("ref", 0))),
             T.kpi("曾經出現在考卷", str(t["appeared"]), I.FACT_CHECK, "amber", "題目"),
             T.kpi("圖形題", str(s["images"]), I.IMAGE, "pink", "張圖片")])
         top = max([u["usable"] for u in s["units"]] or [1]) or 1
@@ -188,8 +218,8 @@ class Stats(ft.Column):
                                           width=max(2, 340 * u["usable"] / top), height=14), width=350),
                 ft.Text(str(u["usable"]), size=15, weight=ft.FontWeight.W_800, width=50,
                         text_align=ft.TextAlign.RIGHT),
-                T.muted("題庫 %d　歷屆 %d　手動 %d　停用 %d" % (u["bank"], u["exam_only"], u["manual"],
-                                                       u["inactive"]), 12)], spacing=10))
+                T.muted("題庫 %d　參考 %d　歷屆 %d　手動 %d　停用 %d" % (u["bank"], u["ref"], u["exam_only"],
+                                                              u["manual"], u["inactive"]), 12)], spacing=10))
         units_card = T.card(ft.Column([
             ft.Row([T.icon_tile(I.CATEGORY, "teal", 34), ft.Text("各單元題庫數", size=16, weight=ft.FontWeight.W_700,
                                                                   expand=True),
@@ -201,7 +231,7 @@ class Stats(ft.Column):
                              ("q_same", "題庫已有", "s", 70), ("rate", "新題比例", "s", 70)], height=300)
         rows = []
         for r in s["sources"]:
-            rows.append(dict(r, year_s=str(r["year"] or ""), kind_s="題庫參考資料" if r["kind"] == "BANK" else "學科測試試題",
+            rows.append(dict(r, year_s=str(r["year"] or ""), kind_s=KIND_NAMES.get(r["kind"], r["kind"]),
                              rate="%d%%" % round(r["q_new"] * 100 / r["q_total"]) if r["q_total"] else ""))
         self.ygrid.set_rows(rows)
         # 每年度考卷各單元題數
@@ -257,7 +287,7 @@ class Import(ft.Column):
         rows = self.ctx.books.sources()
         for r in rows:
             r["year_s"] = str(r["year"] or "")
-            r["kind_s"] = "題庫參考資料" if r["kind"] == "BANK" else "學科測試試題"
+            r["kind_s"] = KIND_NAMES.get(r["kind"], r["kind"])
             r["when"] = T.show(r["imported_at"])
         self.grid.set_rows(rows)
         if refresh:
@@ -304,7 +334,7 @@ class Import(ft.Column):
                     units = "、".join("%s:%d" % (k, v) for k, v in sorted(r["by_unit"].items()))
                     line.controls = [ft.Icon(I.CHECK_CIRCLE, color=T.SUCCESS, size=18), ft.Text(
                         "%s（%s %s）：拆出 %d 題，新增 %d 題、題庫已有 %d 題%s" % (
-                            name, r["year"] or "", "題庫" if r["kind"] == "BANK" else "年度試題", r["total"], r["new"],
+                            name, r["year"] or "", KIND_NAMES.get(r["kind"], ""), r["total"], r["new"],
                             r["same"], ("　新題單元 " + units) if units else ""), size=13, expand=True)]
                     for w in r["warnings"][:5]:
                         self.msg.controls.append(T.muted("　⚠ " + w, 12))

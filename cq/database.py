@@ -8,9 +8,15 @@ import pymysql.cursors
 
 from .settings import Settings
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 UPGRADES = {
     # 版本號: [SQL…]（之後的版本在這裡加欄位，舊資料庫開啟時自動升級）
+    2: ["ALTER TABLE qb_question ADD COLUMN IF NOT EXISTS explain_text TEXT COMMENT '試題解說'",
+        "ALTER TABLE qb_question ADD COLUMN IF NOT EXISTS explain_by VARCHAR(30) NOT NULL DEFAULT '' COMMENT '解說來源'",
+        "ALTER TABLE qb_question ADD COLUMN IF NOT EXISTS explain_at DATETIME NULL COMMENT '解說更新時間'",
+        "ALTER TABLE sys_company ADD COLUMN IF NOT EXISTS ai_key VARCHAR(255) NOT NULL DEFAULT '' COMMENT 'Claude API 金鑰'",
+        "ALTER TABLE sys_company ADD COLUMN IF NOT EXISTS ai_model VARCHAR(60) NOT NULL DEFAULT 'claude-opus-5-5' "
+        "COMMENT 'AI 解說使用的模型'"],
 }
 
 

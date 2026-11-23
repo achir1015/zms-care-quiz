@@ -438,6 +438,8 @@ class Ctx:
         if self.web:
             return
         from ..voice import speaker
+        speaker.on_fail = lambda msg: self.toast(msg, True)
+        self.toast("🔊 朗讀中…")
         speaker.say(text)
 
     def _audio_state(self, e):

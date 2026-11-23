@@ -78,3 +78,46 @@ def test_allocate():
     from cq.quiz import allocate
     out = allocate({"01": 191, "02": 102, "03": 72, "04": 87, "05": 101, "06": 67}, 100)
     assert sum(out.values()) == 100 and out["01"] == 31
+
+
+def test_seed_bank(db):
+    """全新安裝：內建基本題庫自動載入，可直接出 100 題；同一份 PDF 再匯入會被判定為已匯入過。"""
+    from cq import seedbank
+    from cq.biz import Biz
+    n = seedbank.load(db)
+    assert n > 800
+    assert seedbank.load(db) == 0                                  # 已有題目就不再載入
+    b = Biz(db)
+    b.create_first_admin("admin", "管理員", "admin123")
+    b.login("admin", "admin123")
+    s = b.bank_stats()
+    assert s["total"]["usable"] > 800 and s["images"] >= 3 and len(s["sources"]) == 16
+    aid = b.start_quiz("MOCK")
+    assert len(b.attempt(aid)["items"]) == 100
+    if os.path.isfile(BANK):
+        with pytest.raises(Exception):
+            b.import_pdf(_read(BANK), "照顧服務員學科.pdf")
+
+
+def test_explain_and_review(db):
+    """內建題庫每題都有解說；解說不寫選項編號；單元複習的選項換位後正確位置仍指向正確答案。"""
+    import re
+    from cq import seedbank
+    from cq.biz import Biz
+    seedbank.load(db)
+    b = Biz(db)
+    b.create_first_admin("admin", "管理員", "admin123")
+    b.login("admin", "admin123")
+    assert b.missing_explain_ids() == []
+    for r in db.rows("SELECT explain_text FROM qb_question WHERE deleted=0"):
+        assert not re.search(r"[①②③④]", r["explain_text"])
+    items = b.review_items("01")
+    assert len(items) > 150
+    for it in items[:50]:
+        q = db.row("SELECT * FROM qb_question WHERE id=%s", (it["qid"],))
+        assert it["options"][it["correct_pos"] - 1] == q["opt%d" % q["answer"]]
+        assert it["explain"]
+    aid = b.start_quiz("UNIT", unit="02")
+    b.submit(aid, 10, {})
+    done = b.attempt(aid)
+    assert all(x["explain"] for x in done["items"])
