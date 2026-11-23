@@ -121,3 +121,14 @@ def test_explain_and_review(db):
     b.submit(aid, 10, {})
     done = b.attempt(aid)
     assert all(x["explain"] for x in done["items"])
+
+
+def test_fill_explanations(db):
+    """舊版載入的題庫沒有解說：開啟時依比對鍵補上，不覆蓋已有的。"""
+    from cq import seedbank
+    seedbank.load(db)
+    db.exec("UPDATE qb_question SET explain_text=NULL")
+    db.exec("UPDATE qb_question SET explain_text='自己寫的' WHERE id=(SELECT MIN(id) FROM (SELECT id FROM qb_question) t)")
+    n = seedbank.fill_explanations(db)
+    assert n > 800
+    assert db.value("SELECT explain_text FROM qb_question ORDER BY id LIMIT 1") == "自己寫的"

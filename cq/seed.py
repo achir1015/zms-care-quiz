@@ -62,3 +62,4 @@ def seed_all(db, first=False):
     from . import seedbank
     if not os.environ.get("CQ_NO_SEED"):
         seedbank.load(db)                # 內建基本題庫（題庫還是空的時候）
+        seedbank.fill_explanations(db)   # 舊資料庫補上內建解說（只補空白的）

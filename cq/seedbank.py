@@ -60,3 +60,21 @@ def load(db, path=None):
                                                          ", ".join(["%s"] * len(cols))), rows)
     return len(data.get("qb_question", []))
 
+
+
+def fill_explanations(db, path=None):
+    """已經有題庫的資料庫（例如較早版本載入的內建題庫）：依比對鍵補上內建解說，只補空白的，不覆蓋。"""
+    path = path or seed_path()
+    if not os.path.isfile(path):
+        return 0
+    if not db.value("SELECT COUNT(*) FROM qb_question WHERE deleted=0 AND (explain_text IS NULL OR explain_text='')"):
+        return 0
+    with gzip.open(path, "rt", encoding="utf-8") as f:
+        data = json.load(f)
+    rows = [(q["explain_text"], q.get("explain_by") or "內建 AI", q["norm_key"]) for q in data.get("qb_question", [])
+            if q.get("explain_text")]
+    n = 0
+    for text, by, key in rows:
+        n += db.exec("UPDATE qb_question SET explain_text=%s, explain_by=%s, explain_at=NOW() "
+                     "WHERE norm_key=%s AND (explain_text IS NULL OR explain_text='')", (text, by, key)) or 0
+    return n
