@@ -73,6 +73,10 @@ try:
                         (e, q["id"]))
         print("解說：比對鍵 %d 題、相似度 %d 題、沒有 %d 題" % (hit, fuzzy, db.value(
             "SELECT COUNT(*) FROM qb_question WHERE deleted=0 AND (explain_text IS NULL OR explain_text='')")))
+    # 原始 PDF 本身有錯的題目：停用（114 參考題庫「發現案主有其他需求」的選項是另一題「照顧記錄」的）
+    n_bad = db.exec("UPDATE qb_question SET active=0 WHERE origin='REF' AND stem LIKE %s AND opt4 LIKE %s",
+                    ("%發現案主有其他需求%", "%毫無意義%"))
+    print("停用原始 PDF 有錯的題目：%d 題" % n_bad)
     out = os.path.join(HERE, "assets", "seed", "bank.json.gz")
     print(seedbank.dump(db, out), "%.1f MB" % (os.path.getsize(out) / 1e6))
     print(b.bank_stats()["total"])
