@@ -78,3 +78,21 @@ def fill_explanations(db, path=None):
         n += db.exec("UPDATE qb_question SET explain_text=%s, explain_by=%s, explain_at=NOW() "
                      "WHERE norm_key=%s AND (explain_text IS NULL OR explain_text='')", (text, by, key)) or 0
     return n
+
+
+def fill_units(db, path=None):
+    """已經有題庫的資料庫：內建題庫人工指定單元的題目（unit_auto=0），若使用者這邊還在「待分類」就改成內建的單元。
+    使用者自己指定過的單元（不是 99）不覆蓋。"""
+    path = path or seed_path()
+    if not os.path.isfile(path):
+        return 0
+    if not db.value("SELECT COUNT(*) FROM qb_question WHERE unit='99'"):
+        return 0
+    with gzip.open(path, "rt", encoding="utf-8") as f:
+        data = json.load(f)
+    n = 0
+    for q in data.get("qb_question", []):
+        if not q.get("unit_auto") and q.get("unit") not in (None, "", "99"):
+            n += db.exec("UPDATE qb_question SET unit=%s, unit_auto=0 WHERE norm_key=%s AND unit='99'",
+                         (q["unit"], q["norm_key"])) or 0
+    return n

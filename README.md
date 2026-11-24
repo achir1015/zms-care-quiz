@@ -11,8 +11,8 @@ https://github.com/user-attachments/assets/2706bc8c-9d47-4d24-a061-f9723f6ac28d
 
 ## 下載
 
-- **Windows 11**：到 [Releases](https://github.com/achir1015/zms-care-quiz/releases/latest) 下載 `ZMSCareQuiz-Setup-1.0.0.exe`，安裝後桌面會有捷徑，打開就能用（資料庫內建，自動啟動與停止）。
-- **macOS**：下載 `ZMSCareQuiz-1.0.0-mac.dmg`，把 App 拖到「應用程式」（已通過 Apple 公證）。
+- **Windows 11**：到 [Releases](https://github.com/achir1015/zms-care-quiz/releases/latest) 下載 `ZMSCareQuiz-Setup-1.0.1.exe`，安裝後桌面會有捷徑，打開就能用（資料庫內建，自動啟動與停止）。
+- **macOS**：下載 `ZMSCareQuiz-1.0.1-mac.dmg`，把 App 拖到「應用程式」（已通過 Apple 公證）。
 - **線上版**：https://achir1015.github.io/zms-care-quiz/app/ （手機、平板、電腦都能用，可加到主畫面離線練習；紀錄存在這台裝置）
 - 第一次開啟會自動載入**內建基本題庫 897 題（889 題可出題），每題附 AI 解說**；第一次使用請建立系統管理員帳號。
 
@@ -37,8 +37,8 @@ https://github.com/user-attachments/assets/2706bc8c-9d47-4d24-a061-f9723f6ac28d
 
 | 平台 | 狀態 |
 |---|---|
-| Windows 11 | ✅ v1.0.0 |
-| MacBook Pro | ✅ v1.0.0（Apple 公證） |
+| Windows 11 | ✅ v1.0.1 |
+| MacBook Pro | ✅ v1.0.1（Apple 公證） |
 | 線上版（HTML） | ✅ [GitHub Pages](https://achir1015.github.io/zms-care-quiz/)（純網頁，內建題庫與解說） |
 | iPhone／iPad（線上安裝） | ✅ [安裝頁](https://achir1015.github.io/zms-care-quiz/ios/)（WKWebView 外殼＋內建網頁，離線可用；限登記過的裝置） |
 | Android | ✅ `ZMSCareQuiz-版本-android.apk`（WebView 外殼＋內建網頁，離線可用、手機語音朗讀、程式內更新） |
